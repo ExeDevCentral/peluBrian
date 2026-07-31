@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import AdminPanel, { AdminReservation } from './components/AdminPanel'
 import { validateUploadedImage } from './services/api'
 import { sendBookingNotifications } from './services/api_email'
+import { syncReservationToGoogleSheets, sendEmailViaFormSubmit } from './services/cloud_sync'
 
 // ── TYPES & INTERFACES ──────────────────────────────────────────────────────
 
@@ -646,7 +647,7 @@ export default function App() {
     }
     setAdminReservations(prev => [adminResItem, ...prev])
 
-    // Trigger Email Notification to Owner & Customer
+    // Trigger Email Notification via FormSubmit.co & Resend
     sendBookingNotifications({
       voucherId: newRes.id,
       serviceName: newRes.serviceName,
@@ -656,14 +657,21 @@ export default function App() {
       totalPrice: newRes.totalPrice,
       depositPaid: newRes.depositPaid,
       qrCodeSeed: newRes.qrCodeSeed,
-    }).then(res => {
-      if (res.message) {
-        console.log('[Notification]', res.message)
-      }
+    })
+
+    sendEmailViaFormSubmit({
+      id: newRes.id,
+      serviceName: newRes.serviceName,
+      barberName: newRes.barberName,
+      dateDisplay: newRes.dateDisplay,
+      time: newRes.time,
+      totalPrice: newRes.totalPrice,
+      depositPaid: newRes.depositPaid,
+      status: 'CONFIRMADO',
     })
 
     setBookingStep(3)
-    addToast('¡Reserva registrada y notificación enviada al dueño!', 'success')
+    addToast('¡Reserva registrada y enviada al dueño!', 'success')
     return newRes
   }
 
