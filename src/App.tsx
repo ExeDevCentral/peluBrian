@@ -853,7 +853,7 @@ export default function App() {
       <section id="hover-reveal-section" style={{ padding: '7rem 2.5rem', background: '#0d0b08', borderTop: `1px solid ${T.border}` }}>
         <div style={{ maxWidth: 1320, margin: '0 auto' }}>
           
-          <div style={{ textCenter: 'left', marginBottom: '4rem', maxWidth: 760 }}>
+          <div style={{ textAlign: 'left', marginBottom: '4rem', maxWidth: 760 }}>
             <div style={{ fontSize: '0.6rem', letterSpacing: '0.45em', color: T.brass, textTransform: 'uppercase', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
               <span style={{ display: 'inline-block', width: 22, height: 1, background: T.brass }} />
               Diseño Visual Moderno & Microinteracciones

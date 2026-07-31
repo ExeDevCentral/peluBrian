@@ -34,7 +34,7 @@ export default function AdminPanel({ reservations, onUpdateStatus, onClose }: Ad
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(10,8,6,0.92)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}>
-      <div style={{ width: '100%', maxWidth: 1000, maxH: '90vh', background: '#161210', border: '1px solid rgba(196,148,58,0.3)', borderRadius: 4, display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.8)' }}>
+      <div style={{ width: '100%', maxWidth: 1000, maxHeight: '90vh', background: '#161210', border: '1px solid rgba(196,148,58,0.3)', borderRadius: 4, display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.8)' }}>
         
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem 2rem', borderBottom: '1px solid rgba(196,148,58,0.2)', background: '#0f0c0a' }}>
