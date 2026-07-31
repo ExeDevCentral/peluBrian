@@ -446,34 +446,51 @@ export default function App() {
   const [attachedReference, setAttachedReference] = useState<boolean>(true)
   const [confirmedReservation, setConfirmedReservation] = useState<Reservation | null>(null)
 
-  // Admin Panel & Manager State
+  // Admin Panel & Local Storage State (100% Sin Base de Datos / Gratuito)
   const [showAdminPanel, setShowAdminPanel] = useState<boolean>(false)
-  const [adminReservations, setAdminReservations] = useState<AdminReservation[]>([
-    {
-      id: 'EBD-8492',
-      serviceName: 'Corte de Cabello Porteño',
-      barberName: 'Don Carlos Méndez',
-      customerName: 'Santiago Rossi',
-      customerPhone: '+54 11 5543-9988',
-      dateDisplay: 'HOY 31 JUL',
-      time: '16:00',
-      totalPrice: 4500,
-      depositPaid: 2250,
-      status: 'CONFIRMADO',
-    },
-    {
-      id: 'EBD-3104',
-      serviceName: 'Combo Completo: Corte + Barba',
-      barberName: 'Facundo Reyes',
-      customerName: 'Gonzalo Fernández',
-      customerPhone: '+54 11 4432-1100',
-      dateDisplay: 'MAÑANA 01 AGO',
-      time: '11:15',
-      totalPrice: 7200,
-      depositPaid: 3600,
-      status: 'PENDIENTE',
-    },
-  ])
+  const [adminReservations, setAdminReservations] = useState<AdminReservation[]>(() => {
+    try {
+      const saved = localStorage.getItem('buho_admin_reservations')
+      if (saved) return JSON.parse(saved)
+    } catch (e) {
+      console.warn('Error al leer reservas de localStorage', e)
+    }
+    return [
+      {
+        id: 'EBD-8492',
+        serviceName: 'Corte de Cabello Porteño',
+        barberName: 'Don Carlos Méndez',
+        customerName: 'Santiago Rossi',
+        customerPhone: '+54 341 5543-9988',
+        dateDisplay: 'HOY 31 JUL',
+        time: '16:00',
+        totalPrice: 4500,
+        depositPaid: 2250,
+        status: 'CONFIRMADO',
+      },
+      {
+        id: 'EBD-3104',
+        serviceName: 'Combo Completo: Corte + Barba',
+        barberName: 'Facundo Reyes',
+        customerName: 'Gonzalo Fernández',
+        customerPhone: '+54 341 4432-1100',
+        dateDisplay: 'MAÑANA 01 AGO',
+        time: '11:15',
+        totalPrice: 7200,
+        depositPaid: 3600,
+        status: 'PENDIENTE',
+      },
+    ]
+  })
+
+  // Persist reservations to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('buho_admin_reservations', JSON.stringify(adminReservations))
+    } catch (e) {
+      console.warn('Error al guardar reservas en localStorage', e)
+    }
+  }, [adminReservations])
 
   // E-commerce Cart & Hair Products (Cremas, Geles, Ceras, Aceites)
   const [cart, setCart] = useState<CartItem[]>([])
@@ -655,7 +672,7 @@ export default function App() {
     const res = confirmedReservation || createReservation()
     const text = `Hola El Búho Dorado! 👋 Quiero confirmar mi turno:\n\n✂️ *Servicio*: ${res.serviceName}\n💈 *Barbero*: ${res.barberName}\n📅 *Día*: ${res.dateDisplay}\n⏰ *Hora*: ${res.time} hs\n💰 *Seña Abonada*: ${fmt(res.depositPaid)} al Alias ${MP_ALIAS}\n🔖 *Código Voucher*: ${res.id}\n\nAdjunto el comprobante de transferencia.`
     const encoded = encodeURIComponent(text)
-    window.open(`https://wa.me/541143628800?text=${encoded}`, '_blank')
+    window.open(`https://wa.me/5434143628800?text=${encoded}`, '_blank')
   }
 
   // Smooth Scroll
