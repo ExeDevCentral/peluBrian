@@ -1,0 +1,10 @@
+{
+  "description": "Engage users with interactive image cards that reveal hidden content through smooth hover transitions, enhancing visual storytelling for websites and portfolios.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
