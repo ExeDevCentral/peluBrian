@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import AdminPanel, { AdminReservation } from './components/AdminPanel'
 import { validateUploadedImage } from './services/api'
+import { sendBookingNotifications } from './services/api_email'
 
 // ── TYPES & INTERFACES ──────────────────────────────────────────────────────
 
@@ -341,7 +342,7 @@ const HAIR_PRODUCTS: HairProduct[] = [
   },
 ]
 
-const TIME_SLOTS = ['09:00', '09:45', '10:30', '11:15', '12:00', '14:30', '15:15', '16:00', '16:45', '17:30', '18:15', '19:00']
+const TIME_SLOTS = ['10:00', '10:45', '11:30', '12:15', '13:00', '14:00', '14:45', '15:30', '16:15', '17:00', '17:45', '18:00']
 
 const MP_ALIAS = 'elbuho.dorado.mp'
 const MP_TITULAR = 'El Búho Dorado Barbería'
@@ -628,8 +629,24 @@ export default function App() {
     }
     setAdminReservations(prev => [adminResItem, ...prev])
 
+    // Trigger Email Notification to Owner & Customer
+    sendBookingNotifications({
+      voucherId: newRes.id,
+      serviceName: newRes.serviceName,
+      barberName: newRes.barberName,
+      dateDisplay: newRes.dateDisplay,
+      timeSlot: newRes.time,
+      totalPrice: newRes.totalPrice,
+      depositPaid: newRes.depositPaid,
+      qrCodeSeed: newRes.qrCodeSeed,
+    }).then(res => {
+      if (res.message) {
+        console.log('[Notification]', res.message)
+      }
+    })
+
     setBookingStep(3)
-    addToast('¡Reserva registrada correctamente!', 'success')
+    addToast('¡Reserva registrada y notificación enviada al dueño!', 'success')
     return newRes
   }
 
@@ -691,7 +708,7 @@ export default function App() {
           <div style={{ width: 38, height: 38, background: T.goldGrad, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, color: '#1a0e00', fontWeight: 800, boxShadow: '0 0 20px rgba(196,148,58,0.3)' }}>◈</div>
           <div>
             <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.1rem', fontWeight: 700, letterSpacing: '0.04em' }}>El Búho Dorado</div>
-            <div style={{ fontSize: '0.54rem', letterSpacing: '0.35em', color: T.brass, textTransform: 'uppercase' }}>Barbería Boutique · Buenos Aires · Est. 1947</div>
+            <div style={{ fontSize: '0.54rem', letterSpacing: '0.35em', color: T.brass, textTransform: 'uppercase' }}>Barbería Boutique · Rosario, Santa Fe · Est. 1947</div>
           </div>
         </div>
 
@@ -761,7 +778,7 @@ export default function App() {
       <section id="inicio" style={{ position: 'relative', height: '100vh', overflow: 'hidden', display: 'flex', alignItems: 'flex-end' }}>
         <img
           src="https://images.unsplash.com/photo-1759134155377-4207d89b39ec?w=1800&h=1000&fit=crop&auto=format&crop=top"
-          alt="El Búho Dorado — Barbería Boutique Buenos Aires"
+          alt="El Búho Dorado — Barbería Boutique Rosario"
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 20%' }}
         />
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, #0d0b08 0%, rgba(13,11,8,0.75) 45%, rgba(13,11,8,0.25) 100%)' }} />
@@ -770,12 +787,12 @@ export default function App() {
         <div style={{ position: 'relative', padding: '0 4rem 6.5rem', maxWidth: 880 }}>
           <div style={{ fontSize: '0.62rem', letterSpacing: '0.45em', color: T.brass, textTransform: 'uppercase', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <span style={{ display: 'inline-block', width: 36, height: 1, background: T.brass }} />
-            San Telmo, Buenos Aires · Asesoría con IA & Reserva Directa
+            Urquiza 1315, Rosario · Horarios de 10 a 18 hs
           </div>
           <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(3.4rem, 7.5vw, 6.8rem)', fontWeight: 900, lineHeight: 0.95, marginBottom: '1.75rem', letterSpacing: '-0.02em' }}>
             El Arte del<br />
             <em style={{ color: T.brass, fontStyle: 'italic' }}>Caballero</em><br />
-            Porteño
+            Rosarino
           </h1>
           <p style={{ fontFamily: "'Lora', serif", fontSize: '1.08rem', color: T.creamMuted, maxWidth: 520, lineHeight: 1.8, marginBottom: '2.75rem' }}>
             Subí tu foto para recibir la recomendación de corte ideal con nuestro Escáner de Visión por IA, reservá tu turno para hoy o esta semana y adquirí los mejores geles y pomadas.
@@ -1591,7 +1608,7 @@ export default function App() {
                       </svg>
                     </div>
                     <div style={{ fontSize: '0.68rem', color: T.muted, lineHeight: 1.5 }}>
-                      Presentá este comprobante en la recepción de Bolívar 742, San Telmo. Restante a abonar en el local: {fmt(confirmedReservation.totalPrice - confirmedReservation.depositPaid)}.
+                      Presentá este comprobante en la recepción de Calle Urquiza 1315, Rosario (Horarios: 10:00 a 18:00 hs). Restante a abonar en el local: {fmt(confirmedReservation.totalPrice - confirmedReservation.depositPaid)}.
                     </div>
                   </div>
                 </div>
@@ -1760,7 +1777,7 @@ export default function App() {
             {[
               { title: 'Navegación', links: ['Inicio', 'Probá tu Corte (IA)', 'Reservas de la Semana', 'Cremas & Geles'] },
               { title: 'Productos', links: ['Pomada Fuerte Noir', 'Gel Extra Forte', 'Cera Mate Rioplatense', 'Crema Brillantina'] },
-              { title: 'Ubicación & Contacto', links: ['Bolívar 742, San Telmo', 'Buenos Aires, Argentina', '+54 11 4362-8800'] },
+              { title: 'Ubicación & Contacto', links: ['Calle Urquiza 1315, Rosario', 'Rosario, Santa Fe, Argentina', 'Horarios: 10:00 a 18:00 hs', '+54 341 4362-8800'] },
             ].map(col => (
               <div key={col.title}>
                 <div style={{ fontSize: '0.6rem', letterSpacing: '0.35em', color: T.brass, textTransform: 'uppercase', marginBottom: '1.25rem', fontWeight: 700 }}>{col.title}</div>
