@@ -146,3 +146,103 @@ input:focus {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* ── MOBILE RESPONSIVE OPTIMIZATIONS ── */
+
+/* Touch-friendly tap targets */
+button {
+  touch-action: manipulation;
+}
+
+/* Collapse multi-column grids & flex rows to a single column on small screens */
+@media (max-width: 900px) {
+  .mob-stack {
+    grid-template-columns: 1fr !important;
+  }
+
+  .mob-hide {
+    display: none !important;
+  }
+
+  .mob-nav-toggle {
+    display: flex !important;
+  }
+
+  .mob-cta-bar {
+    display: flex !important;
+  }
+
+  .mob-menu-open {
+    display: block !important;
+  }
+
+  /* Reduce section padding for narrow viewports */
+  .app-section {
+    padding: 4rem 1.25rem !important;
+  }
+
+  nav {
+    padding-left: 1.25rem !important;
+    padding-right: 1.25rem !important;
+  }
+
+  /* Hero: tighten spacing */
+  .hero-inner {
+    padding: 0 1.5rem 4rem !important;
+  }
+
+  .hero-title {
+    font-size: clamp(2.6rem, 11vw, 4rem) !important;
+  }
+
+  /* Booking wizard internal padding */
+  .wizard-body {
+    padding: 2rem 1.25rem !important;
+  }
+
+  /* Reserve space so the sticky bottom CTA never covers content */
+  body {
+    padding-bottom: 5.5rem !important;
+  }
+
+  /* Time slot grid: 3 columns instead of 4 on mobile */
+  .slots-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+
+  /* Haircut catalog: single column on small screens */
+  .styles-grid {
+    max-height: none !important;
+  }
+}
+
+@media (min-width: 901px) {
+  .mob-nav-toggle,
+  .mob-cta-bar {
+    display: none !important;
+  }
+
+  .mob-menu {
+    display: none !important;
+  }
+}
+
+/* Performance: avoid rendering below-fold heavy sections until needed */
+.cvis {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 800px;
+}
+
+/* Respect reduced-motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001s !important;
+  }
+}
+

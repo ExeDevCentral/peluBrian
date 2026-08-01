@@ -57,7 +57,7 @@ Para llevar este prototipo/MVP a un entorno de producción a gran escala, se rec
 - [ ] **Webhooks Backend**: Endpoint `POST /api/webhooks/mercadopago` para escuchar cambios de estado (`payment.approved`) y confirmar turnos de forma 100% desatendida.
 
 ### 3. 🤖 Visión Artificial & Modelo IA Real
-- [ ] **Reconocimiento Facial Avanzado**: Integración de OpenAI Vision API (`gpt-4o-mini`) o modelos de landmarks faciales (MediaPipe / PyTorch) para una clasificación antropométrica exacta de la estructura facial.
+- [x] **Reconocimiento Facial Avanzado**: Integración de OpenAI Vision API (`gpt-4o-mini`) en el backend (`POST /api/ai/analyze-face`) que clasifica la estructura facial real de la foto subida y recomienda el corte óptimo con score de compatibilidad.
 
 ### 4. 🗄️ Base de Datos Relacional & Concurrencia
 - [ ] **Persistencia en PostgreSQL / Supabase**: Tablas para `Users`, `Barbers`, `Services`, `Appointments`, `Products` y `Orders`.

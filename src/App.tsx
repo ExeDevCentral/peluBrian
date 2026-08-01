@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import AdminPanel, { AdminReservation } from './components/AdminPanel'
-import { validateUploadedImage } from './services/api'
+import { validateUploadedImage, BarberiaAPI } from './services/api'
 import { sendBookingNotifications } from './services/api_email'
 import { syncReservationToGoogleSheets, sendEmailViaFormSubmit } from './services/cloud_sync'
 
@@ -422,6 +422,7 @@ function HaircutOverlaySVG({ styleId, scale = 1, yOffset = 0, color = '#3a2718' 
 
 export default function App() {
   const [scrolled, setScrolled] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   // Photo Haircut Studio States ("Subí tu foto y elegí tu corte con IA")
   const [userPhoto, setUserPhoto] = useState<string | null>(SAMPLE_FACES[0].url)
@@ -517,8 +518,8 @@ export default function App() {
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
-  // Trigger AI Face Analysis & Haircut Recommendation
-  const runAiFacialAnalysis = () => {
+  // Trigger Real AI Face Analysis & Haircut Recommendation
+  const runAiFacialAnalysis = async () => {
     setIsAiScanning(true)
     setScanProgress(0)
     setAiAnalysis(null)
@@ -533,24 +534,32 @@ export default function App() {
       })
     }, 180)
 
-    setTimeout(() => {
-      clearInterval(interval)
-      setIsAiScanning(false)
-      
-      // Determine recommendation based on face shape or random high match
-      const bestStyle = HAIR_STYLES.find(h => h.id === selectedStyleId) || HAIR_STYLES[0]
-      
+    try {
+      const result = await BarberiaAPI.analyzeFaceVision({
+        imageBase64: userPhoto || '',
+      })
+
+      const bestStyle = HAIR_STYLES.find(h => h.id === result.bestStyleId) || HAIR_STYLES[0]
+
       const analysis: AiAnalysis = {
-        faceShape: selectedFaceShape,
-        score: Math.floor(92 + Math.random() * 7), // 92% to 98%
+        faceShape: result.faceShape,
+        score: result.score,
         bestStyle: bestStyle,
-        explanation: `Nuestro modelo de visión IA detectó una estructura facial ${selectedFaceShape} con proporciones equilibradas. El corte ${bestStyle.name} alarga óptimamente la frente y resalta tus rasgos.`,
-        recommendedGel: bestStyle.recommendedProduct,
+        explanation: result.explanation,
+        recommendedGel: result.recommendedProduct,
       }
 
+      setSelectedFaceShape(result.faceShape)
       setAiAnalysis(analysis)
       addToast(`✨ IA: ${analysis.score}% de compatibilidad detectada para ${bestStyle.name}`, 'gold')
-    }, 2200)
+    } catch (err) {
+      console.warn('[AI] Error al analizar rostro:', err)
+      addToast('⚠️ No se pudo analizar la foto. Probá con otra imagen.', 'gold')
+    } finally {
+      clearInterval(interval)
+      setScanProgress(100)
+      setIsAiScanning(false)
+    }
   }
 
   // Copy Alias to Clipboard
@@ -737,54 +746,69 @@ export default function App() {
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '2.2rem', alignItems: 'center' }}>
-          {[
-            ['Inicio', 'inicio'],
-            ['Tarjetas Hover Reveal', 'hover-reveal-section'],
-            ['Probá tu Corte (IA)', 'estudio-foto'],
-            ['Reservas de la Semana', 'reservas'],
-            ['Cremas & Geles', 'tienda-geles'],
-          ].map(([label, id]) => (
-            <button
-              key={id}
-              onClick={() => scrollTo(id)}
-              style={{ background: 'none', border: 'none', color: T.creamMuted, cursor: 'pointer', fontSize: '0.72rem', letterSpacing: '0.14em', textTransform: 'uppercase', transition: 'color 0.2s', padding: 0 }}
-              onMouseEnter={e => (e.currentTarget.style.color = T.brass)}
-              onMouseLeave={e => (e.currentTarget.style.color = T.creamMuted)}
-            >
-              {label}
-            </button>
-          ))}
+        <div style={{ display: 'flex', gap: '1.2rem', alignItems: 'center' }}>
+          {/* Desktop Nav Links */}
+          <div className="mob-hide" style={{ display: 'flex', gap: '1.6rem', alignItems: 'center' }}>
+            {[
+              ['Inicio', 'inicio'],
+              ['Tarjetas Hover Reveal', 'hover-reveal-section'],
+              ['Probá tu Corte (IA)', 'estudio-foto'],
+              ['Reservas de la Semana', 'reservas'],
+              ['Cremas & Geles', 'tienda-geles'],
+            ].map(([label, id]) => (
+              <button
+                key={id}
+                onClick={() => scrollTo(id)}
+                style={{ background: 'none', border: 'none', color: T.creamMuted, cursor: 'pointer', fontSize: '0.72rem', letterSpacing: '0.14em', textTransform: 'uppercase', transition: 'color 0.2s', padding: 0, whiteSpace: 'nowrap' }}
+                onMouseEnter={e => (e.currentTarget.style.color = T.brass)}
+                onMouseLeave={e => (e.currentTarget.style.color = T.creamMuted)}
+              >
+                {label}
+              </button>
+            ))}
 
-          {/* Admin Panel Button */}
-          <button
-            onClick={() => setShowAdminPanel(true)}
-            style={{
-              background: 'transparent', border: `1px solid ${T.border}`, borderRadius: 2, padding: '0.45rem 0.85rem',
-              color: T.brass, fontSize: '0.65rem', letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer',
-              fontWeight: 700, transition: 'all 0.2s',
-            }}
-            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(196,148,58,0.15)')}
-            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-          >
-            🔑 Panel Barberos
-          </button>
+            {/* Admin Panel Button */}
+            <button
+              onClick={() => setShowAdminPanel(true)}
+              style={{
+                background: 'transparent', border: `1px solid ${T.border}`, borderRadius: 2, padding: '0.45rem 0.85rem',
+                color: T.brass, fontSize: '0.65rem', letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer',
+                fontWeight: 700, transition: 'all 0.2s',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(196,148,58,0.15)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+            >
+              🔑 Panel Barberos
+            </button>
+          </div>
 
           {/* Cart Icon Button */}
           <button
             onClick={() => setShowCartDrawer(true)}
-            style={{ position: 'relative', background: 'none', border: 'none', color: T.cream, cursor: 'pointer', fontSize: '1.2rem', lineHeight: 1, padding: 0 }}
+            style={{ position: 'relative', background: 'none', border: 'none', color: T.cream, cursor: 'pointer', fontSize: '1.2rem', lineHeight: 1, padding: '0.35rem' }}
+            aria-label="Abrir carrito"
           >
             🛒
             {cartCount > 0 && (
-              <span style={{ position: 'absolute', top: -7, right: -10, background: T.brass, color: '#1a0e00', borderRadius: '50%', width: 18, height: 18, fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>
+              <span style={{ position: 'absolute', top: -4, right: -6, background: T.brass, color: '#1a0e00', borderRadius: '50%', width: 18, height: 18, fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>
                 {cartCount}
               </span>
             )}
           </button>
 
-          {/* Reserve CTA */}
+          {/* Mobile Hamburger Toggle */}
           <button
+            className="mob-nav-toggle"
+            onClick={() => setMobileMenuOpen(v => !v)}
+            aria-label={mobileMenuOpen ? 'Cerrar menú' : 'Abrir menú'}
+            style={{ background: 'none', border: `1px solid ${T.border}`, borderRadius: 2, color: T.cream, cursor: 'pointer', fontSize: '1.05rem', lineHeight: 1, padding: '0.45rem 0.65rem', display: 'none' }}
+          >
+            {mobileMenuOpen ? '✕' : '☰'}
+          </button>
+
+          {/* Reserve CTA (desktop) */}
+          <button
+            className="mob-hide"
             onClick={() => scrollTo('reservas')}
             style={{
               background: T.goldGrad, border: 'none', borderRadius: 2, padding: '0.55rem 1.4rem',
@@ -799,22 +823,70 @@ export default function App() {
         </div>
       </nav>
 
+      {/* Mobile Menu Panel */}
+      {mobileMenuOpen && (
+        <div className="mob-menu" style={{ position: 'fixed', top: scrolled ? 62 : 81, left: 0, right: 0, zIndex: 190, background: 'rgba(13,11,8,0.98)', backdropFilter: 'blur(16px)', borderBottom: `1px solid ${T.border}`, boxShadow: '0 20px 40px rgba(0,0,0,0.6)' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', padding: '0.75rem 1.25rem 1.25rem' }}>
+            {[
+              ['Inicio', 'inicio'],
+              ['Tarjetas Hover Reveal', 'hover-reveal-section'],
+              ['Probá tu Corte (IA)', 'estudio-foto'],
+              ['Reservas de la Semana', 'reservas'],
+              ['Cremas & Geles', 'tienda-geles'],
+            ].map(([label, id]) => (
+              <button
+                key={id}
+                onClick={() => {
+                  setMobileMenuOpen(false)
+                  scrollTo(id)
+                }}
+                style={{ background: 'none', border: 'none', borderBottom: `1px solid ${T.border}`, color: T.cream, cursor: 'pointer', fontSize: '0.95rem', letterSpacing: '0.08em', textTransform: 'uppercase', textAlign: 'left', padding: '0.95rem 0.5rem', fontWeight: 600 }}
+              >
+                {label}
+              </button>
+            ))}
+            <div style={{ display: 'flex', gap: '0.75rem', paddingTop: '1rem' }}>
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false)
+                  setShowAdminPanel(true)
+                }}
+                style={{ flex: 1, background: 'transparent', border: `1px solid ${T.border}`, borderRadius: 2, padding: '0.8rem', color: T.brass, fontSize: '0.72rem', letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', fontWeight: 700 }}
+              >
+                🔑 Panel Barberos
+              </button>
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false)
+                  scrollTo('reservas')
+                }}
+                style={{ flex: 1.4, background: T.goldGrad, border: 'none', borderRadius: 2, padding: '0.8rem', color: '#1a0e00', fontWeight: 800, fontSize: '0.72rem', letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}
+              >
+                📅 Reservar Turno
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ═══════════════ HERO SECTION ═══════════════ */}
       <section id="inicio" style={{ position: 'relative', height: '100vh', overflow: 'hidden', display: 'flex', alignItems: 'flex-end' }}>
         <img
           src="https://images.unsplash.com/photo-1759134155377-4207d89b39ec?w=1800&h=1000&fit=crop&auto=format&crop=top"
           alt="El Búho Dorado — Barbería Boutique Rosario"
+          fetchPriority="high"
+          decoding="async"
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 20%' }}
         />
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, #0d0b08 0%, rgba(13,11,8,0.75) 45%, rgba(13,11,8,0.25) 100%)' }} />
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(100deg, rgba(13,11,8,0.8) 0%, transparent 60%)' }} />
 
-        <div style={{ position: 'relative', padding: '0 4rem 6.5rem', maxWidth: 880 }}>
+        <div className="hero-inner" style={{ position: 'relative', padding: '0 4rem 6.5rem', maxWidth: 880 }}>
           <div style={{ fontSize: '0.62rem', letterSpacing: '0.45em', color: T.brass, textTransform: 'uppercase', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <span style={{ display: 'inline-block', width: 36, height: 1, background: T.brass }} />
             Urquiza 1315, Rosario · Horarios de 10 a 18 hs
           </div>
-          <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(3.4rem, 7.5vw, 6.8rem)', fontWeight: 900, lineHeight: 0.95, marginBottom: '1.75rem', letterSpacing: '-0.02em' }}>
+          <h1 className="hero-title" style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(3.4rem, 7.5vw, 6.8rem)', fontWeight: 900, lineHeight: 0.95, marginBottom: '1.75rem', letterSpacing: '-0.02em' }}>
             El Arte del<br />
             <em style={{ color: T.brass, fontStyle: 'italic' }}>Caballero</em><br />
             Rosarino
@@ -850,7 +922,7 @@ export default function App() {
       </section>
 
       {/* ═══════════════ GALERÍA DE TARJETAS CON HOVER REVEAL ═══════════════ */}
-      <section id="hover-reveal-section" style={{ padding: '7rem 2.5rem', background: '#0d0b08', borderTop: `1px solid ${T.border}` }}>
+      <section id="hover-reveal-section" className="app-section cvis" style={{ padding: '7rem 2.5rem', background: '#0d0b08', borderTop: `1px solid ${T.border}` }}>
         <div style={{ maxWidth: 1320, margin: '0 auto' }}>
           
           <div style={{ textAlign: 'left', marginBottom: '4rem', maxWidth: 760 }}>
@@ -876,6 +948,8 @@ export default function App() {
                 src="https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=800&h=1000&fit=crop&auto=format"
                 alt="Pompadour Noir Corte Porteño"
                 className="reveal-card-img"
+                loading="lazy"
+                decoding="async"
               />
               <div className="shimmer-effect" />
               
@@ -916,6 +990,8 @@ export default function App() {
                 src="https://images.unsplash.com/photo-1517832606589-71574620396d?w=800&h=1000&fit=crop&auto=format"
                 alt="Afeitado Tradicional Navaja"
                 className="reveal-card-img"
+                loading="lazy"
+                decoding="async"
               />
               <div className="shimmer-effect" />
 
@@ -954,6 +1030,8 @@ export default function App() {
                 src="https://images.unsplash.com/photo-1775126250999-806ca8419dcb?w=800&h=1000&fit=crop&auto=format"
                 alt="Pomada Fuerte Noir Búho Dorado"
                 className="reveal-card-img"
+                loading="lazy"
+                decoding="async"
               />
               <div className="shimmer-effect" />
 
@@ -992,10 +1070,10 @@ export default function App() {
       </section>
 
       {/* ═══════════════ ESTUDIO INTERACTIVO & ASESOR IA ═══════════════ */}
-      <section id="estudio-foto" style={{ padding: '7rem 2.5rem', background: '#0a0806', borderTop: `1px solid ${T.border}` }}>
+      <section id="estudio-foto" className="app-section cvis" style={{ padding: '7rem 2.5rem', background: '#0a0806', borderTop: `1px solid ${T.border}` }}>
         <div style={{ maxWidth: 1320, margin: '0 auto' }}>
           
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.3fr', gap: '4rem', alignItems: 'end', marginBottom: '3.5rem' }}>
+          <div className="mob-stack" style={{ display: 'grid', gridTemplateColumns: '1fr 1.3fr', gap: '2rem', alignItems: 'end', marginBottom: '3.5rem' }}>
             <div>
               <div style={{ fontSize: '0.6rem', letterSpacing: '0.45em', color: T.brass, textTransform: 'uppercase', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                 <span style={{ display: 'inline-block', width: 22, height: 1, background: T.brass }} />
@@ -1011,7 +1089,7 @@ export default function App() {
             </p>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 0.9fr', gap: '2.5rem', alignItems: 'start' }}>
+          <div className="mob-stack" style={{ display: 'grid', gridTemplateColumns: '1.1fr 0.9fr', gap: '2.5rem', alignItems: 'start' }}>
             
             {/* LEFT COLUMN: INTERACTIVE CANVAS VIEWPORT & AI SCANNER */}
             <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 2, padding: '1.75rem', position: 'relative' }}>
@@ -1246,7 +1324,7 @@ export default function App() {
                 Catálogo Completo de Cortes
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.85rem', maxHeight: 420, overflowY: 'auto', paddingRight: '0.4rem' }}>
+              <div className="styles-grid mob-stack" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.85rem', maxHeight: 420, overflowY: 'auto', paddingRight: '0.4rem' }}>
                 {HAIR_STYLES.map(style => {
                   const isSel = selectedStyleId === style.id
                   return (
@@ -1289,8 +1367,8 @@ export default function App() {
       </section>
 
       {/* ═══════════════ VENTA DE RESERVAS EN EL DÍA O LA SEMANA ═══════════════ */}
-      <section id="reservas" style={{ padding: '7rem 2.5rem', maxWidth: 1320, margin: '0 auto' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '4rem', alignItems: 'start', marginBottom: '3.5rem' }}>
+      <section id="reservas" className="app-section cvis" style={{ padding: '7rem 2.5rem', maxWidth: 1320, margin: '0 auto' }}>
+        <div className="mob-stack" style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '2rem', alignItems: 'start', marginBottom: '3.5rem' }}>
           <div>
             <div style={{ fontSize: '0.6rem', letterSpacing: '0.45em', color: T.brass, textTransform: 'uppercase', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
               <span style={{ display: 'inline-block', width: 22, height: 1, background: T.brass }} />
@@ -1336,7 +1414,7 @@ export default function App() {
             })}
           </div>
 
-          <div style={{ padding: '3rem 2.75rem' }}>
+          <div className="wizard-body" style={{ padding: '3rem 2.75rem' }}>
 
             {/* ── STEP 0: SERVICE SELECT ── */}
             {bookingStep === 0 && (
@@ -1345,7 +1423,7 @@ export default function App() {
                   Elegí el servicio para tu corte
                 </h3>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1.25rem', marginBottom: '2rem' }}>
+                <div className="mob-stack" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1.25rem', marginBottom: '2rem' }}>
                   {SERVICES.map(s => {
                     const isSel = selectedServiceId === s.id
                     return (
@@ -1412,12 +1490,12 @@ export default function App() {
                   })}
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 0.9fr', gap: '3rem', alignItems: 'start' }}>
+                <div className="mob-stack" style={{ display: 'grid', gridTemplateColumns: '1.1fr 0.9fr', gap: '3rem', alignItems: 'start' }}>
                   <div>
                     <h4 style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.15rem', marginBottom: '1rem' }}>
                       Horarios Disponibles para {dateDisplayStr}
                     </h4>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.65rem', marginBottom: '1.5rem' }}>
+                    <div className="slots-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.65rem', marginBottom: '1.5rem' }}>
                       {TIME_SLOTS.map(slot => {
                         const isSel = selectedTime === slot
                         return (
@@ -1474,7 +1552,7 @@ export default function App() {
 
             {/* ── STEP 2: SUPER SIMPLE MERCADO PAGO ALIAS PAYMENT ── */}
             {bookingStep === 2 && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 0.9fr', gap: '3.5rem', alignItems: 'start' }}>
+              <div className="mob-stack" style={{ display: 'grid', gridTemplateColumns: '1.1fr 0.9fr', gap: '3.5rem', alignItems: 'start' }}>
                 <div>
                   <div style={{ fontSize: '0.62rem', color: T.brass, textTransform: 'uppercase', letterSpacing: '0.25em', marginBottom: '0.5rem', fontWeight: 800 }}>
                     PAGO DIRECTO SÚPER FÁCIL & SEGURO
@@ -1696,8 +1774,8 @@ export default function App() {
       </section>
 
       {/* ═══════════════ CATÁLOGO DE CREMAS, GELES Y POMADAS ═══════════════ */}
-      <section id="tienda-geles" style={{ padding: '7rem 2.5rem', maxWidth: 1320, margin: '0 auto' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '4rem', alignItems: 'end', marginBottom: '3.5rem' }}>
+      <section id="tienda-geles" className="app-section cvis" style={{ padding: '7rem 2.5rem', maxWidth: 1320, margin: '0 auto' }}>
+        <div className="mob-stack" style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '2rem', alignItems: 'end', marginBottom: '3.5rem' }}>
           <div>
             <div style={{ fontSize: '0.6rem', letterSpacing: '0.45em', color: T.brass, textTransform: 'uppercase', marginBottom: '0.75rem' }}>
               <span style={{ display: 'inline-block', width: 22, height: 1, background: T.brass, marginRight: '0.6rem', verticalAlign: 'middle' }} />
@@ -1727,7 +1805,7 @@ export default function App() {
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1px', background: T.border }}>
+        <div className="mob-stack" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1px', background: T.border }}>
           {filteredProducts.map(p => {
             const inCartItem = cart.find(i => i.id === p.id)
             return (
@@ -1736,6 +1814,8 @@ export default function App() {
                   <img
                     src={p.image}
                     alt={p.name}
+                    loading="lazy"
+                    decoding="async"
                     style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.5s ease' }}
                     onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.08)')}
                     onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
@@ -1783,9 +1863,9 @@ export default function App() {
       </section>
 
       {/* ═══════════════ FOOTER ═══════════════ */}
-      <footer style={{ background: '#060504', borderTop: `1px solid ${T.border}`, padding: '5rem 2.5rem 3rem' }}>
+      <footer className="app-section" style={{ background: '#060504', borderTop: `1px solid ${T.border}`, padding: '5rem 2.5rem 3rem' }}>
         <div style={{ maxWidth: 1320, margin: '0 auto' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: '3rem', marginBottom: '4rem' }}>
+          <div className="mob-stack" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: '2.5rem', marginBottom: '4rem' }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', marginBottom: '1.25rem' }}>
                 <div style={{ width: 36, height: 36, background: T.goldGrad, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#1a0e00', fontWeight: 800 }}>◈</div>
@@ -1902,6 +1982,22 @@ export default function App() {
           onClose={() => setShowAdminPanel(false)}
         />
       )}
+
+      {/* ═══════════════ MOBILE STICKY CTA BAR ═══════════════ */}
+      <div className="mob-cta-bar" style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 180, background: 'rgba(13,11,8,0.97)', backdropFilter: 'blur(14px)', borderTop: `1px solid ${T.border}`, display: 'none', gap: '0.75rem', padding: '0.75rem 1.25rem', paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}>
+        <button
+          onClick={() => setShowCartDrawer(true)}
+          style={{ background: 'transparent', border: `1px solid ${T.border}`, borderRadius: 2, padding: '0.9rem 1rem', color: T.cream, fontSize: '0.7rem', letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', fontWeight: 700, flexShrink: 0 }}
+        >
+          🛒 {cartCount > 0 ? `(${cartCount})` : ''}
+        </button>
+        <button
+          onClick={() => scrollTo('reservas')}
+          style={{ flex: 1, background: T.goldGrad, border: 'none', borderRadius: 2, padding: '0.9rem', color: '#1a0e00', fontWeight: 800, fontSize: '0.78rem', letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', boxShadow: '0 4px 20px rgba(196,148,58,0.35)' }}
+        >
+          📅 Reservar Turno
+        </button>
+      </div>
 
     </div>
   )

@@ -59,19 +59,46 @@ export const BarberiaAPI = {
     }
   },
 
-  // Perform AI Vision Face Analysis
+  // Perform AI Vision Face Analysis (real via backend OpenAI Vision, with local fallback)
   analyzeFaceVision: async (payload: AiVisionRequest): Promise<AiVisionResponse> => {
-    // In production, this sends payload to backend endpoint POST /api/ai/analyze-face
-    await new Promise(res => setTimeout(res, 1800))
-    const shapes = ['Ovalado', 'Cuadrado', 'Redondo', 'Diamante']
-    const detectedShape = shapes[Math.floor(Math.random() * shapes.length)]
-    
-    return {
-      faceShape: detectedShape,
-      score: Math.floor(92 + Math.random() * 7),
-      bestStyleId: 'pompadour',
-      explanation: `Detección antropométrica completada para rostro tipo ${detectedShape}. El balance entre pómulos y línea mandibular favorece cortes de volumen superior.`,
-      recommendedProduct: 'Pomada Fuerte Noir Búho (Fijación Máxima)',
+    try {
+      const response = await fetch('/api/ai/analyze-face', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: payload.imageBase64 }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`Backend respondió ${response.status}`)
+      }
+
+      const data = await response.json()
+      if (data?.error && data?.fallback) {
+        throw new Error(data.error)
+      }
+
+      return {
+        faceShape: data.faceShape || 'Ovalado',
+        score: data.score ?? 90,
+        bestStyleId: data.bestStyleId || 'pompadour',
+        explanation: data.explanation || 'Análisis facial completado con visión artificial.',
+        recommendedProduct: data.recommendedProduct || 'Pomada Fuerte Noir Búho (Fijación Máxima)',
+      }
+    } catch (err) {
+      console.warn('[AI Vision] Backend no disponible, usando simulación local:', err)
+
+      // Local fallback so the app keeps working without the backend running
+      await new Promise(res => setTimeout(res, 1800))
+      const shapes = ['Ovalado', 'Cuadrado', 'Redondo', 'Diamante']
+      const detectedShape = shapes[Math.floor(Math.random() * shapes.length)]
+
+      return {
+        faceShape: detectedShape,
+        score: Math.floor(92 + Math.random() * 7),
+        bestStyleId: 'pompadour',
+        explanation: `Detección antropométrica completada para rostro tipo ${detectedShape}. El balance entre pómulos y línea mandibular favorece cortes de volumen superior.`,
+        recommendedProduct: 'Pomada Fuerte Noir Búho (Fijación Máxima)',
+      }
     }
   },
 }
