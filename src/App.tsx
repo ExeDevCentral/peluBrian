@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import AdminPanel, { AdminReservation } from './components/AdminPanel'
 import { validateUploadedImage, BarberiaAPI } from './services/api'
 import { sendBookingNotifications } from './services/api_email'
-import { syncReservationToGoogleSheets, sendEmailViaFormSubmit } from './services/cloud_sync'
+import { syncReservationToGoogleSheets } from './services/cloud_sync'
 
 // ── TYPES & INTERFACES ──────────────────────────────────────────────────────
 
@@ -656,11 +656,13 @@ export default function App() {
     }
     setAdminReservations(prev => [adminResItem, ...prev])
 
-    // Trigger Email Notification via FormSubmit.co & Resend
+    // Trigger WhatsApp + Email notifications (backend, con fallback FormSubmit)
     sendBookingNotifications({
       voucherId: newRes.id,
       serviceName: newRes.serviceName,
       barberName: newRes.barberName,
+      customerName: adminResItem.customerName,
+      customerPhone: adminResItem.customerPhone,
       dateDisplay: newRes.dateDisplay,
       timeSlot: newRes.time,
       totalPrice: newRes.totalPrice,
@@ -668,19 +670,8 @@ export default function App() {
       qrCodeSeed: newRes.qrCodeSeed,
     })
 
-    sendEmailViaFormSubmit({
-      id: newRes.id,
-      serviceName: newRes.serviceName,
-      barberName: newRes.barberName,
-      dateDisplay: newRes.dateDisplay,
-      time: newRes.time,
-      totalPrice: newRes.totalPrice,
-      depositPaid: newRes.depositPaid,
-      status: 'CONFIRMADO',
-    })
-
     setBookingStep(3)
-    addToast('¡Reserva registrada y enviada al dueño!', 'success')
+    addToast('¡Reserva registrada y notificaciones enviadas al dueño!', 'success')
     return newRes
   }
 

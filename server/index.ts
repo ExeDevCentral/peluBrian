@@ -1,6 +1,7 @@
 import express from 'express'
 import cors from 'cors'
 import OpenAI from 'openai'
+import { Resend } from 'resend'
 
 const app = express()
 const PORT = process.env.PORT || 4000
@@ -17,8 +18,139 @@ function getOpenAI(): OpenAI {
   return openai
 }
 
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
+const WHATSAPP_VERSION = process.env.WHATSAPP_API_VERSION || 'v21.0'
+
 // Valid haircut style ids that the frontend catalog supports
 const VALID_STYLE_IDS = ['pompadour', 'clasico', 'undercut', 'fade_low', 'slickback', 'quiff']
+
+// ── NOTIFICATIONS HELPERS (WhatsApp Cloud API + Resend) ────────────────────
+
+function waMessageText(to: string, body: string): string | null {
+  const token = process.env.WHATSAPP_TOKEN
+  const phoneId = process.env.WHATSAPP_PHONE_ID
+  if (!token || !phoneId) return null
+
+  return `https://graph.facebook.com/${WHATSAPP_VERSION}/${phoneId}/messages`
+}
+
+async function sendWhatsAppText(to: string, body: string): Promise<{ success: boolean; message: string }> {
+  const token = process.env.WHATSAPP_TOKEN
+  const phoneId = process.env.WHATSAPP_PHONE_ID
+  if (!token || !phoneId) {
+    return { success: false, message: 'WHATSAPP_TOKEN / WHATSAPP_PHONE_ID no configurados' }
+  }
+
+  try {
+    const response = await fetch(waMessageText(to, body)!, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to,
+        type: 'text',
+        text: { preview_url: false, body },
+      }),
+    })
+
+    if (!response.ok) {
+      const errText = await response.text()
+      return { success: false, message: `WhatsApp Cloud API ${response.status}: ${errText.slice(0, 300)}` }
+    }
+
+    return { success: true, message: `Mensaje WhatsApp enviado a ${to}` }
+  } catch (err: any) {
+    return { success: false, message: err?.message || 'Error de red al enviar WhatsApp' }
+  }
+}
+
+async function sendOwnerEmail(subject: string, html: string): Promise<{ success: boolean; message: string }> {
+  const ownerEmail = process.env.OWNER_EMAIL || 'dueno@elbuho.com'
+  if (!resend) {
+    return { success: false, message: 'RESEND_API_KEY no configurada' }
+  }
+
+  try {
+    await resend.emails.send({
+      from: 'El Búho Dorado <reservas@elbuho.com>',
+      to: [ownerEmail],
+      subject,
+      html,
+    })
+    return { success: true, message: `Email enviado a ${ownerEmail}` }
+  } catch (err: any) {
+    return { success: false, message: err?.message || 'Error al enviar email con Resend' }
+  }
+}
+
+// ── NOTIFICATION ENDPOINT: Booking Confirmation (WhatsApp + Email) ──────────
+
+app.post('/api/notifications/booking-confirmation', async (req, res) => {
+  try {
+    const {
+      voucherId,
+      serviceName,
+      barberName,
+      customerName,
+      customerPhone,
+      dateDisplay,
+      timeSlot,
+      totalPrice,
+      depositPaid,
+      qrCodeSeed,
+    } = req.body
+
+    if (!voucherId || !serviceName || !dateDisplay || !timeSlot) {
+      return res.status(400).json({ error: 'Faltan datos obligatorios de la reserva' })
+    }
+
+    const fmt = (n: number) => `$ ${Number(n || 0).toLocaleString('es-AR')}`
+    const remaining = Number(totalPrice || 0) - Number(depositPaid || 0)
+
+    const whatsappBody =
+      `💈 *NUEVA RESERVA SEÑADA - El Búho Dorado*\n\n` +
+      `🎟 *Voucher:* ${voucherId}\n` +
+      `✂️ *Servicio:* ${serviceName}\n` +
+      `💈 *Barbero:* ${barberName}\n` +
+      `📅 *Día:* ${dateDisplay}\n` +
+      `⏰ *Hora:* ${timeSlot} hs\n` +
+      `💰 *Seña abonada (50%):* ${fmt(depositPaid)}\n` +
+      `🧾 *Restante en local:* ${fmt(remaining)}\n` +
+      `👤 *Cliente:* ${customerName || 'Cliente Web'}\n` +
+      `📱 *Teléfono:* ${customerPhone || '-'}\n\n` +
+      `📍 Calle Urquiza 1315, Rosario`
+
+    const emailHtml = `
+      <div style="font-family: Arial, sans-serif; background: #0d0b08; color: #f2e6cc; padding: 2rem; border-radius: 4px;">
+        <h2 style="color: #c4943a; margin-top: 0;">💈 Nueva Reserva Registrada - Rosario</h2>
+        <p><b>Voucher No:</b> <span style="color: #c4943a;">${voucherId}</span></p>
+        <p><b>Servicio:</b> ${serviceName}</p>
+        <p><b>Barbero Asignado:</b> ${barberName || 'Por asignar'}</p>
+        <p><b>Día y Horario:</b> ${dateDisplay} a las ${timeSlot} hs</p>
+        <p><b>Seña Transferida (50%):</b> ${fmt(depositPaid)}</p>
+        <p><b>Restante a cobrar en local:</b> ${fmt(remaining)}</p>
+        <p><b>Cliente:</b> ${customerName || 'Cliente Web'} (${customerPhone || '-'})</p>
+        <hr style="border-color: rgba(196,148,58,0.3);" />
+        <p style="font-size: 0.8rem; color: #6b5940;">Notificación automática de El Búho Dorado Barbería Boutique.</p>
+      </div>
+    `
+
+    const ownerPhone = process.env.OWNER_PHONE
+    const [whatsappResult, emailResult] = await Promise.all([
+      ownerPhone ? sendWhatsAppText(ownerPhone, whatsappBody) : Promise.resolve({ success: false, message: 'OWNER_PHONE no configurado' }),
+      sendOwnerEmail(`💈 NUEVA RESERVA SEÑADA: ${serviceName} (${dateDisplay} ${timeSlot} hs)`, emailHtml),
+    ])
+
+    res.json({ whatsapp: whatsappResult, email: emailResult })
+  } catch (err: any) {
+    console.error('[Notifications] Error:', err?.message || err)
+    res.status(500).json({ error: err?.message || 'Error al enviar notificaciones' })
+  }
+})
 
 // Healthcheck
 app.get('/api/health', (req, res) => {

@@ -1,9 +1,7 @@
-import { Resend } from 'resend'
-
-const resendApiKey = import.meta.env.VITE_RESEND_API_KEY || ''
-const ownerEmail = import.meta.env.VITE_OWNER_EMAIL || 'dueno@elbuho.com'
-
-const resend = resendApiKey ? new Resend(resendApiKey) : null
+// ── SERVICIO DE NOTIFICACIONES DE RESERVA ────────────────────────────────────
+// Las API keys viven en el servidor (server/index.ts). El frontend llama al
+// endpoint /api/notifications/booking-confirmation y, si el backend no está
+// disponible, cae a FormSubmit.co (envío de email gratuito al dueño).
 
 export interface BookingEmailData {
   voucherId: string
@@ -11,6 +9,7 @@ export interface BookingEmailData {
   barberName: string
   customerName?: string
   customerEmail?: string
+  customerPhone?: string
   dateDisplay: string
   timeSlot: string
   totalPrice: number
@@ -19,40 +18,59 @@ export interface BookingEmailData {
 }
 
 export async function sendBookingNotifications(data: BookingEmailData): Promise<{ success: boolean; message: string }> {
-  console.log('[Email Service] Preparando envío de notificaciones para el turno:', data.voucherId)
+  console.log('[Notifications] Enviando notificaciones para el turno:', data.voucherId)
 
-  // 1. Send Notification Email to Owner
-  if (resend) {
-    try {
-      await resend.emails.send({
-        from: 'El Búho Dorado <reservas@elbuho.com>',
-        to: [ownerEmail],
-        subject: `💈 NUEVA RESERVA SEÑADA: ${data.serviceName} (${data.dateDisplay} ${data.timeSlot} hs)`,
-        html: `
-          <div style="font-family: Arial, sans-serif; background: #0d0b08; color: #f2e6cc; padding: 2rem; border-radius: 4px;">
-            <h2 style="color: #c4943a; margin-top: 0;">💈 Nueva Reserva Registrada - Rosario</h2>
-            <p><b>Voucher No:</b> <span style="color: #c4943a;">${data.voucherId}</span></p>
-            <p><b>Servicio:</b> ${data.serviceName}</p>
-            <p><b>Barbero Asignado:</b> ${data.barberName}</p>
-            <p><b>Día y Horario:</b> ${data.dateDisplay} a las ${data.timeSlot} hs</p>
-            <p><b>Seña Transferida (50%):</b> $ ${data.depositPaid.toLocaleString('es-AR')}</p>
-            <p><b>Restante a cobrar en local:</b> $ ${(data.totalPrice - data.depositPaid).toLocaleString('es-AR')}</p>
-            <p><b>Ubicación:</b> Calle Urquiza 1315, Rosario</p>
-            <hr style="border-color: rgba(196,148,58,0.3);" />
-            <p style="font-size: 0.8rem; color: #6b5940;">Notificación automática de El Búho Dorado Barbería Boutique.</p>
-          </div>
-        `,
-      })
-      return { success: true, message: `Email enviado al dueño (${ownerEmail}) correctamente` }
-    } catch (err: any) {
-      console.warn('[Email Service] Error al enviar email con Resend:', err)
-      return { success: false, message: err?.message || 'Error en envío de email' }
+  try {
+    const response = await fetch('/api/notifications/booking-confirmation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
+
+    if (!response.ok) {
+      const errBody = await response.json().catch(() => null)
+      throw new Error(errBody?.error || `Backend respondió ${response.status}`)
     }
-  }
 
-  // Fallback simulation when API key is not configured yet
-  return {
-    success: true,
-    message: `[Simulación] Notificación enviada al dueño (${ownerEmail}) para la reserva ${data.voucherId}`,
+    const result = await response.json()
+    const whatsappOk = result?.whatsapp?.success
+    const emailOk = result?.email?.success
+
+    if (whatsappOk || emailOk) {
+      return {
+        success: true,
+        message: `Notificaciones enviadas (WhatsApp: ${whatsappOk ? 'OK' : 'no configurado'}, Email: ${emailOk ? 'OK' : 'no configurado'})`,
+      }
+    }
+
+    return { success: false, message: 'Backend sin credenciales de notificación configuradas' }
+  } catch (err: any) {
+    console.warn('[Notifications] Backend no disponible, usando fallback FormSubmit:', err)
+
+    // Fallback: FormSubmit.co sends an email to the owner inbox for free
+    try {
+      const ownerEmail = 'dueno@gmail.com'
+      const res = await fetch(`https://formsubmit.co/ajax/${ownerEmail}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({
+          _subject: `💈 NUEVO TURNO RESERVADO: ${data.serviceName} (${data.dateDisplay} ${data.timeSlot} hs)`,
+          Voucher_ID: data.voucherId,
+          Servicio: data.serviceName,
+          Barbero: data.barberName,
+          Dia: data.dateDisplay,
+          Hora: `${data.timeSlot} hs`,
+          Sena_Abonada: `$ ${data.depositPaid}`,
+          Direccion: 'Calle Urquiza 1315, Rosario',
+        }),
+      })
+
+      return res.ok
+        ? { success: true, message: 'Notificación de respaldo enviada por FormSubmit' }
+        : { success: false, message: 'Fallback FormSubmit falló' }
+    } catch (e: any) {
+      console.warn('[Notifications] Fallback FormSubmit falló:', e)
+      return { success: false, message: e?.message || 'Error de red en fallback' }
+    }
   }
 }

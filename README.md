@@ -64,8 +64,8 @@ Para llevar este prototipo/MVP a un entorno de producción a gran escala, se rec
 - [ ] **Prevención de Overbooking (Race Conditions)**: WebSockets (Socket.io / Supabase Realtime) para bloquear cupos en tiempo real mientras un cliente está completando el pago.
 
 ### 5. 🔔 Notificaciones Automáticas
-- [ ] **WhatsApp Cloud API**: Mensajes automatizados de confirmación de turno y recordatorio 2 horas antes de la cita.
-- [ ] **Emails Transaccionales**: Envío automatizado de comprobantes con PDF adjunto usando Resend / SendGrid.
+- [x] **WhatsApp Cloud API**: Notificación automática al dueño (`POST /api/notifications/booking-confirmation`) con los datos del turno, voucher, seña abonada y teléfono del cliente. Las credenciales viven solo en el servidor.
+- [x] **Emails Transaccionales**: Envío automatizado de la reserva por Resend (server-side) con detalle del ticket. Fallback gratuito a FormSubmit.co si el backend no está disponible.
 
 ---
 
