@@ -1,13 +1,62 @@
 import express from 'express'
 import cors from 'cors'
+import helmet from 'helmet'
+import rateLimit from 'express-rate-limit'
+import crypto from 'node:crypto'
 import OpenAI from 'openai'
 import { Resend } from 'resend'
 
 const app = express()
 const PORT = process.env.PORT || 4000
 
+app.use(helmet())
 app.use(cors())
 app.use(express.json({ limit: '10mb' }))
+
+// ── SECURITY MIDDLEWARE ─────────────────────────────────────────────────────
+
+// Rate limit: basic abuse protection for all /api routes
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  limit: 300,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+})
+
+// Stricter rate limit for auth attempts (brute-force protection)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Demasiados intentos de acceso. Probá de nuevo en 15 minutos.' },
+})
+
+app.use('/api', apiLimiter)
+
+// Simple shared-secret protection for sensitive endpoints. The frontend
+// service must send the header `x-api-key`. If API_SECRET_KEY is not set,
+// sensitive endpoints stay open (local/dev mode) — set it in production.
+function requireApiKey(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const secret = process.env.API_SECRET_KEY
+  if (!secret) return next()
+  const provided = req.header('x-api-key')
+  if (!provided || provided !== secret) {
+    return res.status(401).json({ error: 'API key inválida o faltante' })
+  }
+  next()
+}
+
+// Constant-time comparison helper for PIN verification
+function safeEqual(a: string, b: string): boolean {
+  const bufA = Buffer.from(String(a))
+  const bufB = Buffer.from(String(b))
+  return bufA.length === bufB.length && crypto.timingSafeEqual(bufA, bufB)
+}
+
+function isNonEmptyString(v: unknown): v is string {
+  return typeof v === 'string' && v.trim().length > 0
+}
 
 let openai: OpenAI | null = null
 
@@ -89,7 +138,17 @@ async function sendOwnerEmail(subject: string, html: string): Promise<{ success:
 
 // ── NOTIFICATION ENDPOINT: Booking Confirmation (WhatsApp + Email) ──────────
 
-app.post('/api/notifications/booking-confirmation', async (req, res) => {
+// Simple HTML escaper to prevent injection into the email body
+function escapeHtml(v: unknown): string {
+  return String(v ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
+}
+
+app.post('/api/notifications/booking-confirmation', requireApiKey, async (req, res) => {
   try {
     const {
       voucherId,
@@ -104,36 +163,44 @@ app.post('/api/notifications/booking-confirmation', async (req, res) => {
       qrCodeSeed,
     } = req.body
 
-    if (!voucherId || !serviceName || !dateDisplay || !timeSlot) {
+    if (!isNonEmptyString(voucherId) || !isNonEmptyString(serviceName) || !isNonEmptyString(dateDisplay) || !isNonEmptyString(timeSlot)) {
       return res.status(400).json({ error: 'Faltan datos obligatorios de la reserva' })
     }
 
     const fmt = (n: number) => `$ ${Number(n || 0).toLocaleString('es-AR')}`
-    const remaining = Number(totalPrice || 0) - Number(depositPaid || 0)
+    const remaining = Math.max(0, Number(totalPrice || 0) - Number(depositPaid || 0))
+
+    // Sanitize all values interpolated into WhatsApp / email
+    const e = escapeHtml
+    const voucherIdSafe = e(voucherId)
+    const serviceNameSafe = e(serviceName)
+    const barberNameSafe = e(barberName)
+    const customerNameSafe = e(customerName)
+    const customerPhoneSafe = e(customerPhone)
 
     const whatsappBody =
       `💈 *NUEVA RESERVA SEÑADA - El Búho Dorado*\n\n` +
-      `🎟 *Voucher:* ${voucherId}\n` +
-      `✂️ *Servicio:* ${serviceName}\n` +
-      `💈 *Barbero:* ${barberName}\n` +
+      `🎟 *Voucher:* ${voucherIdSafe}\n` +
+      `✂️ *Servicio:* ${serviceNameSafe}\n` +
+      `💈 *Barbero:* ${barberNameSafe}\n` +
       `📅 *Día:* ${dateDisplay}\n` +
       `⏰ *Hora:* ${timeSlot} hs\n` +
       `💰 *Seña abonada (50%):* ${fmt(depositPaid)}\n` +
       `🧾 *Restante en local:* ${fmt(remaining)}\n` +
-      `👤 *Cliente:* ${customerName || 'Cliente Web'}\n` +
-      `📱 *Teléfono:* ${customerPhone || '-'}\n\n` +
+      `👤 *Cliente:* ${customerNameSafe || 'Cliente Web'}\n` +
+      `📱 *Teléfono:* ${customerPhoneSafe || '-'}\n\n` +
       `📍 Calle Urquiza 1315, Rosario`
 
     const emailHtml = `
       <div style="font-family: Arial, sans-serif; background: #0d0b08; color: #f2e6cc; padding: 2rem; border-radius: 4px;">
         <h2 style="color: #c4943a; margin-top: 0;">💈 Nueva Reserva Registrada - Rosario</h2>
-        <p><b>Voucher No:</b> <span style="color: #c4943a;">${voucherId}</span></p>
-        <p><b>Servicio:</b> ${serviceName}</p>
-        <p><b>Barbero Asignado:</b> ${barberName || 'Por asignar'}</p>
-        <p><b>Día y Horario:</b> ${dateDisplay} a las ${timeSlot} hs</p>
+        <p><b>Voucher No:</b> <span style="color: #c4943a;">${voucherIdSafe}</span></p>
+        <p><b>Servicio:</b> ${serviceNameSafe}</p>
+        <p><b>Barbero Asignado:</b> ${barberNameSafe || 'Por asignar'}</p>
+        <p><b>Día y Horario:</b> ${e(dateDisplay)} a las ${e(timeSlot)} hs</p>
         <p><b>Seña Transferida (50%):</b> ${fmt(depositPaid)}</p>
         <p><b>Restante a cobrar en local:</b> ${fmt(remaining)}</p>
-        <p><b>Cliente:</b> ${customerName || 'Cliente Web'} (${customerPhone || '-'})</p>
+        <p><b>Cliente:</b> ${customerNameSafe || 'Cliente Web'} (${customerPhoneSafe || '-'})</p>
         <hr style="border-color: rgba(196,148,58,0.3);" />
         <p style="font-size: 0.8rem; color: #6b5940;">Notificación automática de El Búho Dorado Barbería Boutique.</p>
       </div>
@@ -142,7 +209,7 @@ app.post('/api/notifications/booking-confirmation', async (req, res) => {
     const ownerPhone = process.env.OWNER_PHONE
     const [whatsappResult, emailResult] = await Promise.all([
       ownerPhone ? sendWhatsAppText(ownerPhone, whatsappBody) : Promise.resolve({ success: false, message: 'OWNER_PHONE no configurado' }),
-      sendOwnerEmail(`💈 NUEVA RESERVA SEÑADA: ${serviceName} (${dateDisplay} ${timeSlot} hs)`, emailHtml),
+      sendOwnerEmail(`💈 NUEVA RESERVA SEÑADA: ${serviceNameSafe} (${e(dateDisplay)} ${e(timeSlot)} hs)`, emailHtml),
     ])
 
     res.json({ whatsapp: whatsappResult, email: emailResult })
@@ -155,6 +222,28 @@ app.post('/api/notifications/booking-confirmation', async (req, res) => {
 // Healthcheck
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
+})
+
+// ── ADMIN AUTH: Verify PIN (server-side, brute-force protected) ─────────────
+// The PIN lives only in the server env (ADMIN_PIN). Without it, the panel
+// stays open (dev mode) — set it in production.
+app.post('/api/auth/verify-pin', authLimiter, (req, res) => {
+  const { pin } = req.body
+  const adminPin = process.env.ADMIN_PIN
+
+  if (!adminPin) {
+    return res.json({ success: true, openMode: true })
+  }
+
+  if (typeof pin !== 'string' || pin.length === 0) {
+    return res.status(400).json({ success: false, error: 'Ingresá el PIN de acceso' })
+  }
+
+  if (safeEqual(pin, adminPin)) {
+    return res.json({ success: true })
+  }
+
+  return res.status(401).json({ success: false, error: 'PIN incorrecto' })
 })
 
 // Real AI Facial Analysis via OpenAI Vision (gpt-4o-mini)
@@ -229,6 +318,9 @@ Reglas:
 })
 
 // Mercado Pago Webhook Route
+// NOTE: webhooks arrive signed by Mercado Pago with the x-signature header,
+// so this route intentionally stays open (no API key). In production you must
+// validate the signature using the notification secret to avoid forgery.
 app.post('/api/webhooks/mercadopago', (req, res) => {
   const { type, data } = req.body
   const signature = req.headers['x-signature']
@@ -241,9 +333,13 @@ app.post('/api/webhooks/mercadopago', (req, res) => {
   res.status(200).send('OK')
 })
 
-// Mercado Pago Create Preference Endpoint
-app.post('/api/checkout/create-preference', (req, res) => {
+// Mercado Pago Create Preference Endpoint (protected)
+app.post('/api/checkout/create-preference', requireApiKey, (req, res) => {
   const { serviceId, barberId, dateStr, timeSlot, depositAmount } = req.body
+
+  if (!isNonEmptyString(serviceId) || !isNonEmptyString(barberId) || !isNonEmptyString(dateStr) || !isNonEmptyString(timeSlot)) {
+    return res.status(400).json({ error: 'Faltan datos obligatorios de la preferencia' })
+  }
 
   // Call Mercado Pago Node SDK Preference API
   const preferenceId = `PREF-${Date.now()}`

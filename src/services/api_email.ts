@@ -20,10 +20,14 @@ export interface BookingEmailData {
 export async function sendBookingNotifications(data: BookingEmailData): Promise<{ success: boolean; message: string }> {
   console.log('[Notifications] Enviando notificaciones para el turno:', data.voucherId)
 
+  const apiKey = import.meta.env.VITE_API_SECRET_KEY || ''
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (apiKey) headers['x-api-key'] = apiKey
+
   try {
     const response = await fetch('/api/notifications/booking-confirmation', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify(data),
     })
 
