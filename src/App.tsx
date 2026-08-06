@@ -319,7 +319,7 @@ const HAIR_PRODUCTS: HairProduct[] = [
     hold: 'Media Flexible (3/5)',
     shine: 'Brillo Tradicional',
     price: 2800,
-    image: 'https://images.unsplash.com/photo-1638383258375-0d294725071b?w=400&h=480&fit=crop&auto=format',
+    image: 'https://images.unsplash.com/photo-1521587760476-6c12a4b040da?w=400&h=480&fit=crop&auto=format',
   },
   {
     id: 'aceite_imperial',
@@ -978,7 +978,7 @@ export default function App() {
             {/* HOVER REVEAL CARD 2: Ritual Afeitado Navaja */}
             <div className="reveal-card" style={{ height: 460 }}>
               <img
-                src="https://images.unsplash.com/photo-1517832606589-71574620396d?w=800&h=1000&fit=crop&auto=format"
+                src="https://images.unsplash.com/photo-1621605815971-fbc98d665033?w=800&h=1000&fit=crop&auto=format"
                 alt="Afeitado Tradicional Navaja"
                 className="reveal-card-img"
                 loading="lazy"
@@ -1796,7 +1796,7 @@ export default function App() {
           </div>
         </div>
 
-        <div className="mob-stack" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1px', background: T.border }}>
+        <div className="mob-stack prod-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1px', background: T.border }}>
           {filteredProducts.map(p => {
             const inCartItem = cart.find(i => i.id === p.id)
             return (
@@ -1807,9 +1807,8 @@ export default function App() {
                     alt={p.name}
                     loading="lazy"
                     decoding="async"
+                    className="prod-img-zoom"
                     style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.5s ease' }}
-                    onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.08)')}
-                    onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
                   />
                   <div style={{ position: 'absolute', top: '1rem', left: '1rem', fontSize: '0.52rem', letterSpacing: '0.3em', color: T.brass, background: 'rgba(13,11,8,0.85)', padding: '0.2rem 0.55rem', borderRadius: 1, textTransform: 'uppercase', fontWeight: 700 }}>
                     {p.category}
@@ -1840,8 +1839,6 @@ export default function App() {
                         color: inCartItem ? T.brass : T.muted, fontSize: '0.68rem', letterSpacing: '0.1em', textTransform: 'uppercase',
                         fontWeight: 700, transition: 'all 0.2s',
                       }}
-                      onMouseEnter={e => { e.currentTarget.style.background = T.brass; e.currentTarget.style.color = '#1a0e00' }}
-                      onMouseLeave={e => { e.currentTarget.style.background = inCartItem ? 'rgba(196,148,58,0.15)' : 'transparent'; e.currentTarget.style.color = inCartItem ? T.brass : T.muted }}
                     >
                       {inCartItem ? `En Carrito (${inCartItem.qty})` : '+ Comprar'}
                     </button>

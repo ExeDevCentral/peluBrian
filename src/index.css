@@ -57,22 +57,11 @@ input:focus {
   transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.4s ease;
 }
 
-.reveal-card:hover {
-  transform: translateY(-8px);
-  border-color: rgba(196, 148, 58, 0.7);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.7), 0 0 30px rgba(196, 148, 58, 0.15);
-}
-
 .reveal-card-img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1), filter 0.6s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.reveal-card:hover .reveal-card-img {
-  transform: scale(1.12);
-  filter: brightness(0.75) contrast(1.1);
 }
 
 /* Slide Up Overlay */
@@ -89,39 +78,11 @@ input:focus {
   transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.reveal-card:hover .reveal-overlay-slide {
-  transform: translateY(0%);
-}
-
 /* Fade Content inside Overlay */
 .reveal-content-stagger > * {
   opacity: 0;
   transform: translateY(15px);
   transition: opacity 0.35s ease, transform 0.35s ease;
-}
-
-.reveal-card:hover .reveal-content-stagger > *:nth-child(1) {
-  opacity: 1;
-  transform: translateY(0);
-  transition-delay: 0.1s;
-}
-
-.reveal-card:hover .reveal-content-stagger > *:nth-child(2) {
-  opacity: 1;
-  transform: translateY(0);
-  transition-delay: 0.18s;
-}
-
-.reveal-card:hover .reveal-content-stagger > *:nth-child(3) {
-  opacity: 1;
-  transform: translateY(0);
-  transition-delay: 0.25s;
-}
-
-.reveal-card:hover .reveal-content-stagger > *:nth-child(4) {
-  opacity: 1;
-  transform: translateY(0);
-  transition-delay: 0.32s;
 }
 
 /* Shimmer Pass Effect */
@@ -137,8 +98,83 @@ input:focus {
   pointer-events: none;
 }
 
-.reveal-card:hover .shimmer-effect {
-  left: 150%;
+/* Hover effects only exist on devices with a hover pointer (mouse/trackpad).
+   On touch screens :hover never clears, so these rules would "stick". */
+@media (hover: hover) {
+  .reveal-card:hover {
+    transform: translateY(-8px);
+    border-color: rgba(196, 148, 58, 0.7);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.7), 0 0 30px rgba(196, 148, 58, 0.15);
+  }
+
+  .reveal-card:hover .reveal-card-img {
+    transform: scale(1.12);
+    filter: brightness(0.75) contrast(1.1);
+  }
+
+  .reveal-card:hover .reveal-overlay-slide {
+    transform: translateY(0%);
+  }
+
+  .reveal-card:hover .reveal-content-stagger > *:nth-child(1) {
+    opacity: 1;
+    transform: translateY(0);
+    transition-delay: 0.1s;
+  }
+
+  .reveal-card:hover .reveal-content-stagger > *:nth-child(2) {
+    opacity: 1;
+    transform: translateY(0);
+    transition-delay: 0.18s;
+  }
+
+  .reveal-card:hover .reveal-content-stagger > *:nth-child(3) {
+    opacity: 1;
+    transform: translateY(0);
+    transition-delay: 0.25s;
+  }
+
+  .reveal-card:hover .reveal-content-stagger > *:nth-child(4) {
+    opacity: 1;
+    transform: translateY(0);
+    transition-delay: 0.32s;
+  }
+
+  .reveal-card:hover .shimmer-effect {
+    left: 150%;
+  }
+
+  /* Product catalog: hover zoom + buy button hover, mouse only */
+  .prod-img-zoom:hover {
+    transform: scale(1.08);
+  }
+
+  .btn-buy:hover {
+    background: #c4943a;
+    color: #1a0e00;
+  }
+}
+
+/* Touch devices (phones/tablets): keep the card content visible — no hover
+   needed. The overlay stays partially revealed with a lighter gradient. */
+@media (hover: none) {
+  .reveal-card-img {
+    filter: brightness(0.82) contrast(1.05);
+  }
+
+  .reveal-overlay-slide {
+    transform: translateY(0%);
+    background: linear-gradient(to top, rgba(13, 11, 8, 0.97) 0%, rgba(13, 11, 8, 0.8) 45%, rgba(13, 11, 8, 0.25) 100%);
+  }
+
+  .reveal-content-stagger > * {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .shimmer-effect {
+    display: none;
+  }
 }
 
 @keyframes fadeIn {
@@ -212,6 +248,24 @@ button {
   /* Haircut catalog: single column on small screens */
   .styles-grid {
     max-height: none !important;
+  }
+
+  /* Product grid: 2 columns on tablet */
+  .prod-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+/* Product grid: 1 column on phones, 2 on tablets, 3 on desktop */
+@media (max-width: 639px) {
+  .prod-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (min-width: 1101px) {
+  .prod-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
   }
 }
 
