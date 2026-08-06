@@ -29,6 +29,15 @@ export interface AiVisionResponse {
   recommendedProduct: string
 }
 
+export interface AiRenderRequest {
+  image: string
+  styleId: string
+}
+
+export interface AiRenderResponse {
+  data: string
+}
+
 // Security Helper: Validate uploaded image file
 export function validateUploadedImage(file: File): { valid: boolean; error?: string } {
   const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/heic']
@@ -100,5 +109,21 @@ export const BarberiaAPI = {
         recommendedProduct: 'Pomada Fuerte Noir Búho (Fijación Máxima)',
       }
     }
+  },
+
+  // Photorealistic haircut try-on via Google Gemini (Nano Banana image).
+  // Throws with data.fallback=true when no GEMINI_API_KEY is configured.
+  renderStyle: async (payload: AiRenderRequest): Promise<AiRenderResponse> => {
+    const response = await fetch('/api/ai/render-style', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+
+    const data = await response.json().catch(() => null)
+    if (!response.ok || data?.fallback) {
+      throw new Error(data?.error || `Backend respondió ${response.status}`)
+    }
+    return { data: data.data }
   },
 }

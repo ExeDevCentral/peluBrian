@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import AdminPanel, { AdminReservation } from './components/AdminPanel'
-import { validateUploadedImage, BarberiaAPI } from './services/api'
+  import { validateUploadedImage, BarberiaAPI } from './services/api'
 import { sendBookingNotifications } from './services/api_email'
 import { syncReservationToGoogleSheets } from './services/cloud_sync'
 
@@ -436,6 +436,9 @@ export default function App() {
   const [isAiScanning, setIsAiScanning] = useState<boolean>(false)
   const [scanProgress, setScanProgress] = useState<number>(0)
   const [aiAnalysis, setAiAnalysis] = useState<AiAnalysis | null>(null)
+  const [aiRenderImage, setAiRenderImage] = useState<string | null>(null)
+  const [isAiRendering, setIsAiRendering] = useState<boolean>(false)
+  const [aiRenderStyleId, setAiRenderStyleId] = useState<HairId | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Paid Booking System States ("Venta de Reservas en el Día o la Semana")
@@ -562,6 +565,29 @@ export default function App() {
     }
   }
 
+  // Render the chosen haircut on the user's photo via Gemini (real) with SVG fallback
+  const runAiStyleRender = async (styleId: HairId) => {
+    const style = HAIR_STYLES.find(h => h.id === styleId)
+    const name = style?.name || 'este corte'
+    setIsAiRendering(true)
+    setAiRenderStyleId(styleId)
+    setAiRenderImage(null)
+    try {
+      const result = await BarberiaAPI.renderStyle({
+        image: userPhoto || SAMPLE_FACES[0].url,
+        styleId,
+      })
+      setAiRenderImage(result.data)
+      addToast(`✨ Corte ${name} generado sobre tu foto`, 'success')
+    } catch (err: any) {
+      console.warn('[AI Render] No disponible, usando overlay local:', err?.message || err)
+      addToast('⚠️ Modo previsualización local activado (agregá GEMINI_API_KEY para render real).', 'gold')
+    } finally {
+      setIsAiRendering(false)
+      setAiRenderStyleId(null)
+    }
+  }
+
   // Copy Alias to Clipboard
   const copyAliasToClipboard = () => {
     navigator.clipboard.writeText(MP_ALIAS)
@@ -582,6 +608,7 @@ export default function App() {
       reader.onload = () => {
         setUserPhoto(reader.result as string)
         setSelectedFaceShape('Tu Foto')
+        setAiRenderImage(null)
         addToast('¡Foto verificada y cargada! Presioná "Analizar mi Rostro con IA".', 'success')
       }
       reader.readAsDataURL(file)
@@ -1121,6 +1148,7 @@ export default function App() {
                     onClick={() => {
                       setUserPhoto(sf.url)
                       setSelectedFaceShape(sf.shape)
+                      setAiRenderImage(null)
                       addToast(`Foto de prueba "${sf.shape}" cargada`, 'info')
                     }}
                     style={{
@@ -1145,15 +1173,25 @@ export default function App() {
                       style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'brightness(0.92) contrast(1.05)' }}
                     />
 
-                    {/* Hair Overlay Layer */}
-                    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-                      <HaircutOverlaySVG
-                        styleId={selectedStyleId}
-                        scale={hairScale}
-                        yOffset={hairOffsetY}
-                        color={hairColor}
-                      />
-                    </div>
+                    {/* Hair Overlay Layer: real AI render if present, else SVG fallback */}
+                    {aiRenderImage ? (
+                      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+                        <img
+                          src={aiRenderImage}
+                          alt="Corte generado por IA"
+                          style={{ width: '100%', height: '100%', objectFit: 'cover', animation: 'fadeIn 0.4s ease' }}
+                        />
+                      </div>
+                    ) : (
+                      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+                        <HaircutOverlaySVG
+                          styleId={selectedStyleId}
+                          scale={hairScale}
+                          yOffset={hairOffsetY}
+                          color={hairColor}
+                        />
+                      </div>
+                    )}
 
                     {/* AI Facial Landmarking Scanning Grid Simulation */}
                     {isAiScanning && (
@@ -1345,6 +1383,25 @@ export default function App() {
                         <span style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.15rem', color: T.brass, fontWeight: 700 }}>{fmt(style.price)}</span>
                         <span style={{ fontSize: '0.62rem', color: T.muted }}>{style.duration}</span>
                       </div>
+
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          runAiStyleRender(style.id)
+                        }}
+                        disabled={isAiRendering}
+                        style={{
+                          width: '100%', marginTop: '0.7rem', background: isSel ? T.goldGrad : 'transparent',
+                          border: isSel ? 'none' : `1px solid ${T.brass}`, borderRadius: 2, padding: '0.55rem',
+                          color: isSel ? '#1a0e00' : T.brass, fontWeight: 800, fontSize: '0.62rem',
+                          letterSpacing: '0.12em', textTransform: 'uppercase', cursor: isAiRendering ? 'wait' : 'pointer',
+                          transition: 'all 0.2s',
+                        }}
+                      >
+                        {isAiRendering && aiRenderStyleId === style.id
+                          ? 'Generando Corte...'
+                          : '✨ Probar este corte'}
+                      </button>
                     </div>
                   )
                 })}

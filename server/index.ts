@@ -317,6 +317,97 @@ Reglas:
   }
 })
 
+// Valid haircut style descriptions used by the AI hair render prompt
+const STYLE_PROMPTS: Record<string, string> = {
+  pompadour: 'Pompadour Noir: elevación frontal con copete voluptuoso y degradé nítido en los laterales. Altura, elegancia y distinción. Inspirado en el tango porteño.',
+  clasico: 'Clásico Porteño: raya lateral neta con sienes al número 2. Peinado distinguido, elegante y atemporal.',
+  undercut: 'Undercut Vintage: corte desconectado con marcada división entre la parte superior larga y costados rapados al ras. Contraste audaz y carácter fuerte.',
+  fade_low: 'Fade Bajo & Textura: degradé suave que inicia bajo en la nuca y patillas, manteniendo movimiento natural en la copa. Sutileza moderna.',
+  slickback: 'Slick Back Ejecutivo: cabello peinado completamente hacia atrás con acabado impecable. Poder, presencia y postura.',
+  quiff: 'Quiff Buenos Aires: frente ligeramente levantado con caída desenfadada y costados en degradé medio. Movimiento libre y versátil.',
+}
+
+// Convert an uploaded image (data URL or http URL) into an inline-data part
+// for the Gemini API: { mimeType, data (base64, no prefix) }.
+async function imageToInlineData(image: string): Promise<{ mimeType: string; data: string }> {
+  // Data URL form: data:<mime>;base64,<payload>
+  if (image.startsWith('data:')) {
+    const match = image.match(/^data:([^;]+);base64,(.*)$/s)
+    if (!match) throw new Error('Data URL de imagen inválida')
+    return { mimeType: match[1], data: match[2] }
+  }
+  // Otherwise treat it as a public URL and download it
+  const res = await fetch(image)
+  if (!res.ok) throw new Error(`No se pudo descargar la imagen de referencia (${res.status})`)
+  const buf = Buffer.from(await res.arrayBuffer())
+  return { mimeType: res.headers.get('content-type') || 'image/jpeg', data: buf.toString('base64') }
+}
+
+// Real AI Haircut Try-On via Google Gemini 2.5 Flash Image (Nano Banana).
+// Swaps the user's hair for the chosen catalog style, preserving the face.
+app.post('/api/ai/render-style', async (req, res) => {
+  try {
+    const { image, styleId } = req.body
+
+    if (!image || typeof image !== 'string' || !isNonEmptyString(styleId)) {
+      return res.status(400).json({ error: 'Faltan "image" y "styleId"' })
+    }
+
+    if (!process.env.GEMINI_API_KEY) {
+      return res.status(503).json({
+        error: 'GEMINI_API_KEY no configurada en el servidor',
+        fallback: true,
+      })
+    }
+
+    const stylePrompt = STYLE_PROMPTS[styleId] || STYLE_PROMPTS.pompadour
+    const inline = await imageToInlineData(image)
+
+    const body = {
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            { text: `Cambia SOLO el cabello de esta persona por este estilo: ${stylePrompt}. Mantené idénticos el rostro, la expresión, el tono de piel, la iluminación, el fondo y la composición de la imagen original. El resultado debe verse como una foto real de la misma persona con ese corte. No cambies la ropa ni los accesorios.` },
+            { inlineData: { mimeType: inline.mimeType, data: inline.data } },
+          ],
+        },
+      ],
+      generationConfig: {
+        responseModalities: ['IMAGE'],
+        imageConfig: { imageSize: '1K' },
+      },
+    }
+
+    const geminiRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+    )
+
+    if (!geminiRes.ok) {
+      const txt = await geminiRes.text()
+      console.error('[AI Hair Render] Gemini error:', geminiRes.status, txt)
+      return res.status(502).json({ error: 'Gemini no respondió correctamente', fallback: true })
+    }
+
+    const data = await geminiRes.json()
+    const part = data?.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData)
+    if (!part?.inlineData?.data) {
+      return res.status(502).json({ error: 'Gemini no devolvió una imagen', fallback: true })
+    }
+
+    const mimeType = part.inlineData.mimeType || 'image/png'
+    res.json({ data: `data:${mimeType};base64,${part.inlineData.data}` })
+  } catch (err: any) {
+    console.error('[AI Render] Error:', err?.message || err)
+    res.status(500).json({ error: err?.message || 'Error al renderizar el corte', fallback: true })
+  }
+})
+
 // Mercado Pago Webhook Route
 // NOTE: webhooks arrive signed by Mercado Pago with the x-signature header,
 // so this route intentionally stays open (no API key). In production you must
