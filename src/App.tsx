@@ -226,12 +226,25 @@ export default function App() {
       <ToastNotification toasts={toasts} onRemove={removeToast} />
 
       {/* Sticky Mobile CTA Bar */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#0d0b08]/95 backdrop-blur border-t border-[#c4943a]/30 p-3 flex gap-2">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#0d0b08]/95 backdrop-blur border-t border-[#c4943a]/40 p-3 bottom-cta-safe flex items-center gap-2 shadow-2xl">
         <button
-          onClick={() => handleNavigate('booking')}
-          className="flex-1 py-3 bg-[#c4943a] text-[#0d0b08] font-extrabold text-xs uppercase tracking-wider rounded text-center shadow"
+          type="button"
+          onClick={() => setIsCartOpen(true)}
+          className="relative px-4 py-3 bg-[#161210] border border-[#c4943a]/40 text-[#f2e6cc] font-bold text-xs rounded flex items-center justify-center gap-1 cursor-pointer"
         >
-          💈 RESERVAR TURNO AHORA
+          <span>🛒</span>
+          {cartCount > 0 && (
+            <span className="bg-[#c4943a] text-[#0d0b08] text-[10px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+              {cartCount}
+            </span>
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={() => handleNavigate('booking')}
+          className="flex-1 py-3 bg-[#c4943a] hover:bg-[#e5b657] text-[#0d0b08] font-extrabold text-xs uppercase tracking-wider rounded text-center shadow-lg cursor-pointer"
+        >
+          📅 RESERVAR TURNO AHORA
         </button>
       </div>
 
