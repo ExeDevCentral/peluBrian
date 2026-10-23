@@ -324,3 +324,20 @@ button, input, select, a {
   }
 }
 
+
+/* Mobile Barber Booking Ergonomics */
+@media (max-width: 639px) {
+  .fluid-pad {
+    padding-inline: 12px !important;
+  }
+  .service-card, .barber-card {
+    padding: 16px 14px !important;
+  }
+  button, a[role="button"] {
+    min-height: 48px;
+  }
+  .booking-modal {
+    padding: 16px 12px !important;
+    border-radius: 16px 16px 0 0 !important;
+  }
+}
