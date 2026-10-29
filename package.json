@@ -18,7 +18,7 @@
     "express-rate-limit": "^8.6.1",
     "helmet": "^8.3.0",
     "openai": "^7.2.0",
-    "react": "^19.0.0",
+    "react": "^19.3.1",
     "react-dom": "^19.0.0",
     "resend": "^6.18.1"
   },
@@ -27,7 +27,7 @@
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^22.19.17",
-    "@types/react": "^19.0.0",
+    "@types/react": "^19.3.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^6.0.0",
     "oxfmt": "^0.2.0",
